@@ -8,6 +8,7 @@ import seaborn as sns
 import statsmodels.api as sm
 from scipy.stats import linregress
 
+os.chdir(Path(__file__).parent)
 
 def otsu_threshold(data):
     sorted_data = np.sort(data)
