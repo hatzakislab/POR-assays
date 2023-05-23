@@ -152,7 +152,7 @@ def process_df(df, root, date, plate, plot = True, pearson_threshold = 0.95, aut
     slope_plot_path = plot_path / "slopes"
     # full_plot_path = slope_plot_path / "full"
     # corrected_plot_path = slope_plot_path / "corrected"
-    auto_corrected_plot_path = slope_plot_path / "auto_corrected"
+    auto_corrected_plot_path = slope_plot_path / "corrected"
     [os.makedirs(this_path, exist_ok = True) for this_path in [path, plot_path, slope_plot_path, auto_corrected_plot_path]]
 
     df["automatic include"] = df["include"]
@@ -243,16 +243,16 @@ def process_df(df, root, date, plate, plot = True, pearson_threshold = 0.95, aut
             # plt.close()
             plt.close()
     if plot:
-        ax_problematic_RS.set_title(f"Autocorrected entries RS")
-        ax_problematic_CytC.set_title(f"Autocorrected entries CytC")
+        ax_problematic_RS.set_title(f"Changes RS")
+        ax_problematic_CytC.set_title(f"Changes CytC")
 
         ax_problematic_RS.legend(**legend_opts)
         ax_problematic_CytC.legend(**legend_opts)
 
         plt.figure(fig_problematic_CytC.number)
-        plt.savefig(slope_plot_path / f"automatic_corrections_CytC.png")
+        plt.savefig(slope_plot_path / f"Changes_CytC.png")
         plt.figure(fig_problematic_RS.number)
-        plt.savefig(slope_plot_path / f"automatic_corrections_RS.png")
+        plt.savefig(slope_plot_path / f"Changes_RS.png")
 
         plt.close()
         plt.close()
