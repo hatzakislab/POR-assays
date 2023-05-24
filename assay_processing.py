@@ -301,7 +301,7 @@ def process_df(df, root, date, plate, plot = True, pearson_threshold = 0.95, aut
     
     return relative_slopes
 
-def batch(file_path, corrections, plot = True, plates_filter = None):
+def batch(file_path, corrections, plot = True, plates_filter = None, pearson_threshold = 0.95):
     file_path = Path(file_path)
     with open(file_path / "corrections.txt", "w") as file:
         json.dump(corrections, file, indent = 2)
@@ -330,7 +330,7 @@ def batch(file_path, corrections, plot = True, plates_filter = None):
             except KeyError:
                 pass
             
-            output = process_df(df, file_path, date, plate, plot = plot)
+            output = process_df(df, file_path, date, plate, plot = plot, pearson_threshold = pearson_threshold)
             output['Plate'] = plate
             all_dfs.append(output)
             
