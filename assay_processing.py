@@ -124,10 +124,13 @@ def autodetect(X, Y, window_size, r2_threshold):
     good_enoughs = []
     for x_sub, y_sub, start in zip(x_windows, y_windows, range(10000)):
         slope, intercept, r, _, _ = linregress(x_sub, y_sub)
-        cooks = cooks_distance(slope, intercept, X, Y, window_size)
+        # cooks = cooks_distance(slope, intercept, X, Y, window_size)
+        resids = np.abs(X * slope + intercept - Y)
         
-        threshold = np.max(cooks[start: start + window_size]) * 20
-        mask = cooks <= threshold
+        # threshold = np.max(cooks[start: start + window_size]) * 30
+        threshold = np.max(resids[start: start + window_size]) * 5
+        # mask = cooks <= threshold
+        mask = resids <= threshold
         res = linregress(X[mask], Y[mask])
         r2 = res[2]**2
         # print(f"raw {r**2} cooked {r2}")
@@ -198,7 +201,8 @@ def process_df(df, root, date, plate, plot = True, pearson_threshold = 0.95, aut
 
             #Automatic changes
             if do_automatic & problematic:
-                _, mask = autodetect(sys_row_col_df["Time"].values[sys_row_col_df["include"]], sys_row_col_df["data"].values[sys_row_col_df["include"]], 8, 0.97)
+                _res, mask = autodetect(sys_row_col_df["Time"].values[sys_row_col_df["include"]], sys_row_col_df["data"].values[sys_row_col_df["include"]], 8, 0.97)
+
                 sys_row_col_df = sys_row_col_df.copy()
                 sys_row_col_df.loc[sys_row_col_df["include"], "automatic include"] = mask
             
