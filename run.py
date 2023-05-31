@@ -25,8 +25,8 @@ corrections = {}
 
 
 
-# file_path = Path(r"C:\Users\andre\Downloads\Results (R268W)")
-file_path = Path(r"/Users/amfaber/Downloads/Results (R268W)")
+file_path = Path(r"C:\Users\andre\Downloads\Results (R268W)\Results (R268W)")
+# file_path = Path(r"/Users/amfaber/Downloads/Results (R268W)")
 
 df = assay_processing.batch(file_path, corrections)
 assay_processing.plot_final(df, file_path)

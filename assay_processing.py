@@ -123,11 +123,11 @@ def autodetect(X, Y, window_size, r2_threshold):
     r2_best = 0
     out_best = None
     good_enoughs = []
-    for x_sub, y_sub in zip(x_windows, y_windows):
+    for x_sub, y_sub, start in zip(x_windows, y_windows, range(10000)):
         slope, intercept, r, _, _ = linregress(x_sub, y_sub)
         cooks = cooks_distance(slope, intercept, X, Y, window_size)
         
-        threshold = np.sort(cooks)[window_size - 1] * 20
+        threshold = np.max(cooks[start: start + window_size]) * 20
         mask = cooks <= threshold
         res = linregress(X[mask], Y[mask])
         r2 = res[2]**2
