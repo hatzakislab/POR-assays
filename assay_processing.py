@@ -108,7 +108,6 @@ def mask_with_column(df, include_column, column, color = None, ax = None, line_x
         ax.legend(**legend_opts)
     
     if ax_problematic is not None:
-        # print("hello")
         color = next(ax_problematic._get_lines.prop_cycler)["color"]
         ax_problematic.plot(line_x, line_x * slope_masked + int_masked, color = color)
         ax_problematic.plot(masked["Time"], masked["data"], "o", color = color, label = problematic_label)
@@ -166,7 +165,7 @@ def process_df(df, root, date, plate, plot = True, pearson_threshold = 0.95, aut
     if plot:
         color_code = ['black', 'red', 'yellow', 'olive', 'pink', 'green', 'teal', 'purple',
                         'brown','blue','orange','grey']
-        legend_opts = dict(ncol = 6, loc = "lower right", handlelength = 0.5, borderpad = 0.3, labelspacing = 0.5, framealpha = 0.5)
+        legend_opts = dict(ncol = 6, loc = "upper left", handlelength = 0.5, borderpad = 0.3, labelspacing = 0.5, framealpha = 0.5)
     slopes = []
     sys_row_col_dfs = []
 
@@ -230,12 +229,13 @@ def process_df(df, root, date, plate, plot = True, pearson_threshold = 0.95, aut
         
         if plot:
             plt.figure(fig_masked_auto.number)
+            plt.title(f"{plate} {system}-{row}{column}")
             plt.savefig(auto_corrected_plot_path / f"{system}_{row}_corrected.png")
             plt.close()
         
     if plot:
-        ax_problematic_RS.set_title(f"Changes RS")
-        ax_problematic_CytC.set_title(f"Changes CytC")
+        ax_problematic_RS.set_title(f"Changes RS {plate}")
+        ax_problematic_CytC.set_title(f"Changes CytC {plate}")
 
         ax_problematic_RS.legend(**legend_opts)
         ax_problematic_CytC.legend(**legend_opts)
@@ -363,14 +363,54 @@ def batch(file_path, corrections, plot = True, plates_filter = None, pearson_thr
 
     all_dfs.to_csv(file_path / 'all_plates_repeats_fixed.csv')
 
-    all_dfs = all_dfs[(all_dfs["column"] != "1") & (all_dfs["column"] != "1")]
+    all_dfs = all_dfs[(all_dfs["column"] != "1") & (all_dfs["column"] != "12")]
 
     system_pivoted = all_dfs.pivot_table(index = ["Plate", "row", "column"], columns = ["system"], values = ["relative_slope"])
     system_pivoted.reset_index(inplace = True)
     system_pivoted.columns = ["_".join(col) if col[-1] != '' else col[0] for col in system_pivoted.columns]
+    
+
+    try:
+        master = load_smiles(file_path)
+        system_pivoted = system_pivoted.merge(master, how = "right", left_on = ["Plate", "row", "column"], right_on = ["Plate", "row", "column"])
+    except FileNotFoundError:
+        pass
+
     system_pivoted.to_csv(file_path / 'pivoted.csv')
 
     return system_pivoted
+
+def load_smiles(file_path):
+    file_path = Path(file_path)
+    fda = pd.read_excel(file_path / "FDA Plates 1-13.xlsx")
+    inf = pd.read_excel(file_path / "Infinisee Plate 16.xlsx")
+    ena = pd.read_excel(file_path / "Enamine 6M Plates 14-15.xlsx")
+
+    fda = fda[["Catalog ID", "Plate_ID", "Well", "Smiles"]]
+    inf = inf[["Catalog_ID", "Plate_ID", "Well", "Smile"]]
+    ena = ena[["Catalog_ID", "Plate_ID", "Well", "Smile"]]
+    fda.rename(columns = {"Catalog ID": "Catalog_ID"}, inplace = True)
+    inf.rename(columns = {"Smile": "Smiles"}, inplace = True)
+    ena.rename(columns = {"Smile": "Smiles"}, inplace = True)
+
+    fda["Plate"] = fda["Plate_ID"].str.split("-", expand = True).iloc[:, -1].astype(int)
+    fda["Plate"] = "Plate " + fda["Plate"].astype(str)
+    fda["row"] = fda["Well"].str.get(0)
+    fda["column"] = fda["Well"].str.slice(1).astype(int).astype(str)
+
+
+    inf["Plate"] = inf["Plate_ID"].str.split("-", expand = True).iloc[:, -1].astype(int)
+    inf["Plate"] = "Plate " + (inf["Plate"] - 3 + 16).astype(str)
+    inf["row"] = inf["Well"].str.get(0)
+    inf["column"] = inf["Well"].str.slice(1).astype(int).astype(str)
+
+    ena["Plate"] = ena["Plate_ID"].str.split("-", expand = True).iloc[:, -1].astype(int)
+    ena["Plate"] = "Plate " + (ena["Plate"] - 1 + 14).astype(str)
+    ena["row"] = ena["Well"].str.get(0)
+    ena["column"] = ena["Well"].str.slice(1).astype(int).astype(str)
+
+    master = pd.concat([fda, ena, inf]).drop(columns = ["Plate_ID", "Well"])
+    return master
 
 def plot_final(final_df, file_path):
     system_values = ["relative_slope_RS", "relative_slope_CytC"]
@@ -380,9 +420,13 @@ def plot_final(final_df, file_path):
             system = value.split("_")[-1]
             pivoted = sub_df.pivot(index = "row", columns = "column", values = [value])
             pivoted.columns = [col[-1] for col in pivoted.columns]
-            pivoted = pivoted[[str(i) for i in range(2, 12)]]
+            try:
+                pivoted = pivoted[[str(i) for i in range(2, 12)]]
+            except KeyError:
+                continue
             sns.heatmap(pivoted, linewidth = 0.5, annot = True, fmt=".2f", robust = True,
                     vmax = 1.5, vmin = 0.5, cmap='seismic')
+            plt.title(f"{plate}-{system}", fontsize = 20)
             plt.savefig(file_path / "heatmaps" / f"{plate}_{system}.png")
             plt.close()
 
