@@ -10,6 +10,9 @@ from scipy.stats import linregress
 
 os.chdir(Path(__file__).parent)
 
+ROW_INDEXING = {chr(letter) : i for i, letter in enumerate(range(ord("A"), ord("H") + 1))}
+
+
 def otsu_threshold(data):
     sorted_data = np.sort(data)
     max_variance = 0
@@ -52,9 +55,12 @@ def read_data(root, date, plate):
     for system in model_systems:
         for letter in letters:
             file = f"{system}_{letter}.txt"
-            df = pd.read_csv(root / date / plate / file,
-                        encoding = "utf-16",
-                        delimiter='\t', header=2, skipfooter=2, engine = "python")
+            try:
+                df = pd.read_csv(root / date / plate / file,
+                            encoding = "utf-16",
+                            delimiter='\t', header=2, skipfooter=2, engine = "python")
+            except FileNotFoundError:
+                continue
             df.dropna(inplace = True, axis = "columns")
             renamer = {col : col[1:] for col in df.columns[2:]}
             df.rename(renamer, axis = "columns", inplace = True)
@@ -143,7 +149,7 @@ def autodetect(X, Y, window_size, r2_threshold):
     out_best = out_best[0], out_best[1]
     return out_best
 
-def process_df(df, root, date, plate, plot = True, pearson_threshold = 0.95, automatic_correction = True):
+def process_df(df, root, date, plate, plot = True, pearson_threshold = 0.95, automatic_correction = True, repeat_mapping = None):
     root = Path(root)
     path = root / date / plate / "processed"
     import shutil
@@ -172,35 +178,24 @@ def process_df(df, root, date, plate, plot = True, pearson_threshold = 0.95, aut
             # fig_full, ax_full = plt.subplots()
             # fig_masked, ax_masked = plt.subplots()
             fig_masked_auto, ax_masked_auto = plt.subplots()
-        for column in range(1, 12 + 1):
+        for int_column in range(1, 12 + 1):
+            
             problematic = False
             if plot:
-                color = color_code[column - 1]
-            column = str(column)
+                color = color_code[int_column - 1]
+            column = str(int_column)
             sys_row_col_df = sys_row_df[sys_row_df["column"] == column]
-            
-            # slope_full, int_full, r_full, _, _ = linregress(sys_row_col_df["Time"], sys_row_col_df["data"])
             
             do_automatic = sys_row_col_df["include"].all() & automatic_correction
 
             line_x = np.array([sys_row_col_df["Time"].min(), sys_row_col_df["Time"].max()])
             
-            # if plot:
-            #     ax_full.plot(sys_row_col_df["Time"], sys_row_col_df["data"], "o", color = color, label = column)
-            #     ax_full.plot(line_x, line_x * slope_full + int_full, color = color)
-
-            #     ax_full.legend(**legend_opts)
-
 
             # Manual changes
             masked = sys_row_col_df[sys_row_col_df["include"]]
             slope_masked, int_masked, r_masked, _, _ = linregress(masked["Time"], masked["data"])
             if r_masked < pearson_threshold:
                 problematic = True
-            # if plot:
-            #     slope_masked, r_masked = mask_with_column(sys_row_col_df, "include", column, color, ax_masked, line_x, legend_opts)
-            # else:
-            #     slope_masked, r_masked = mask_with_column(sys_row_col_df, "include", column)
 
             #Automatic changes
             if do_automatic & problematic:
@@ -222,26 +217,22 @@ def process_df(df, root, date, plate, plot = True, pearson_threshold = 0.95, aut
             else:
                 slope_masked, _ = mask_with_column(sys_row_col_df, "automatic include", column)
 
+            if repeat_mapping is not None:
+                if int_column == 1 or int_column == 12:
+                    true_name = ""
+                else:
+                    true_name = repeat_mapping.iloc[ROW_INDEXING[row], int_column - 2]
+            else:
+                true_name = ""
+
             sys_row_col_dfs.append(sys_row_col_df)
-            # slopes.append((system, row, column, slope_full, slope_masked, slope_masked_auto, do_automatic))
-            slopes.append((system, row, column, slope_masked))
+            slopes.append((system, row, column, slope_masked, true_name))
         
         if plot:
-            # ax_full.set_title(f"Row {row} uncorrected")
-            # ax_masked.set_title(f"Row {row} corrected")
-            
-            # plt.figure(fig_full.number)
-            # plt.figtext(0.15, 0.55, color_text)
-            # plt.savefig(full_plot_path / f"{system}_{row}_full.png")
-
-            # plt.figure(fig_masked.number)
-            # plt.savefig(corrected_plot_path / f"{system}_{row}_corrected.png")
-            
             plt.figure(fig_masked_auto.number)
             plt.savefig(auto_corrected_plot_path / f"{system}_{row}_corrected.png")
-            
-            # plt.close()
             plt.close()
+        
     if plot:
         ax_problematic_RS.set_title(f"Changes RS")
         ax_problematic_CytC.set_title(f"Changes CytC")
@@ -261,7 +252,7 @@ def process_df(df, root, date, plate, plot = True, pearson_threshold = 0.95, aut
         df[col] = new_df[col]
     df.to_csv(path / "full_dataframe.csv")
     # slopes = pd.DataFrame(slopes, columns = ["system", "row", "column", "full_slope", "corrected_slope", "auto_corrected_slope", "automatic correction"])
-    slopes = pd.DataFrame(slopes, columns = ["system", "row", "column", "corrected_slope"])
+    slopes = pd.DataFrame(slopes, columns = ["system", "row", "column", "corrected_slope", "true_name"])
     
     relative_slopes = []
     # if correction_mode == "manual":
@@ -286,6 +277,8 @@ def process_df(df, root, date, plate, plot = True, pearson_threshold = 0.95, aut
     for system in ["RS", "CytC"]:
         pivoted = relative_slopes[relative_slopes["system"] == system].pivot(index = "row", columns = "column", values = ["relative_slope"])
         pivoted.columns = pivoted.columns.droplevel(0)
+        if pivoted.empty:
+            continue
         pivoted = pivoted[[str(i) for i in range(1, 13)]]
         diff_over_mean = relative_slopes[relative_slopes["system"] == system].groupby("row")["diff_over_mean"].max()
         pivoted["diff_over_mean"] = diff_over_mean
@@ -330,10 +323,69 @@ def batch(file_path, corrections, plot = True, plates_filter = None, pearson_thr
             except KeyError:
                 pass
             
-            output = process_df(df, file_path, date, plate, plot = plot, pearson_threshold = pearson_threshold)
+            try:
+                repeat_mapping = pd.read_excel(file_path / date / plate / "repeat_mapping.xlsx", index_col = 0)
+                repeat_mapping.fillna("", inplace = True)
+            except FileNotFoundError:
+                repeat_mapping = None
+
+            output = process_df(
+                df,
+                file_path,
+                date,
+                plate,
+                plot = plot,
+                pearson_threshold = pearson_threshold,
+                repeat_mapping = repeat_mapping
+            )
             output['Plate'] = plate
             all_dfs.append(output)
             
     all_dfs = pd.concat(all_dfs)
     all_dfs.to_csv(file_path / 'all_plates.csv')
-    return all_dfs
+
+    # Fix repeats
+    plates = all_dfs.loc[all_dfs["true_name"] != "", "true_name"].apply(lambda x: f"Plate {x.split('-')[0]}")
+    rows = all_dfs.loc[all_dfs["true_name"] != "", "true_name"].apply(lambda x: f"{x.split('-')[1][0]}")
+    cols = all_dfs.loc[all_dfs["true_name"] != "", "true_name"].apply(lambda x: f"{x.split('-')[1][1:]}")
+    systems = all_dfs.loc[all_dfs["true_name"] != "", "system"]
+    for plate, row, column, system in zip(plates, rows, cols, systems):
+        all_dfs = all_dfs[~(
+            (all_dfs["system"] == system) &
+            (all_dfs["row"] == row) &
+            (all_dfs["column"] == column) &
+            (all_dfs["Plate"] == plate)
+        )]
+    all_dfs.loc[all_dfs["true_name"] != "", "Plate"] = plates
+    all_dfs.loc[all_dfs["true_name"] != "", "row"] = rows
+    all_dfs.loc[all_dfs["true_name"] != "", "column"] = cols
+    all_dfs.drop(columns = "true_name", inplace = True)
+
+    all_dfs.to_csv(file_path / 'all_plates_repeats_fixed.csv')
+
+    all_dfs = all_dfs[(all_dfs["column"] != "1") & (all_dfs["column"] != "1")]
+
+    system_pivoted = all_dfs.pivot_table(index = ["Plate", "row", "column"], columns = ["system"], values = ["relative_slope"])
+    system_pivoted.reset_index(inplace = True)
+    system_pivoted.columns = ["_".join(col) if col[-1] != '' else col[0] for col in system_pivoted.columns]
+    system_pivoted.to_csv(file_path / 'pivoted.csv')
+
+    return system_pivoted
+
+def plot_final(final_df, file_path):
+    system_values = ["relative_slope_RS", "relative_slope_CytC"]
+    os.makedirs(file_path / "heatmaps", exist_ok = True)
+    for plate, sub_df in final_df.groupby("Plate"):
+        for value in system_values:
+            system = value.split("_")[-1]
+            pivoted = sub_df.pivot(index = "row", columns = "column", values = [value])
+            pivoted.columns = [col[-1] for col in pivoted.columns]
+            pivoted = pivoted[[str(i) for i in range(2, 12)]]
+            sns.heatmap(pivoted, linewidth = 0.5, annot = True, fmt=".2f", robust = True,
+                    vmax = 1.5, vmin = 0.5, cmap='seismic')
+            plt.savefig(file_path / "heatmaps" / f"{plate}_{system}.png")
+            plt.close()
+
+    
+    
+
