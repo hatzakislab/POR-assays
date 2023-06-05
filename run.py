@@ -20,14 +20,27 @@ corrections = {
 }
 '''
 
-corrections = {}
+corrections = {
+    "P228L": {
+        "2023_03_29-Plate 1": {
+            "CytC-A2": 'lambda t: ~((t < 40) | ((t > 75) & (t < 125)))'
+        }
+    },
+    "R268W": {
+    },
+    "WT": {
+    },
+    "Sorghum": {
+    },
+}
 
 
 
 
-file_path = Path(r"C:\Users\andre\Downloads\Results (R268W)\Results (R268W)")
+file_path = Path(r"data")
 # file_path = Path(r"/Users/amfaber/Downloads/Results (R268W)")
 
-df = assay_processing.batch(file_path, corrections)
-assay_processing.plot_final(df, file_path)
-# print(df)
+
+for key, correct in corrections.items():
+    df = assay_processing.batch(file_path / key, correct)
+    assay_processing.plot_final(df, file_path / key)

@@ -1,9 +1,7 @@
 __pycache__
-Plate 10
-need_3_a
-test_repeat_mapping
 *.csv
 *.xlsx
 *.txt
 *.ipynb
 .DS_Store
+data

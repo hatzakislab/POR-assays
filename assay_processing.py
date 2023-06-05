@@ -425,7 +425,7 @@ def plot_final(final_df, file_path):
             pivoted = sub_df.pivot(index = "row", columns = "column", values = [value])
             pivoted.columns = [col[-1] for col in pivoted.columns]
             try:
-                pivoted = pivoted[[str(i) for i in range(2, 12)]]
+                pivoted = pivoted[sorted(pivoted.columns, key = lambda x: int(x))]
             except KeyError:
                 continue
             sns.heatmap(pivoted, linewidth = 0.5, annot = True, fmt=".2f", robust = True,
